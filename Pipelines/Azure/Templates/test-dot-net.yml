@@ -1,0 +1,45 @@
+parameters:
+  - name: testProjects
+    type: string
+    default: "**/*Tests.csproj"
+
+steps:
+  - checkout: self
+    fetchDepth: 1
+    fetchTags: false
+
+  - task: NuGetAuthenticate@1
+
+  - task: UseDotNet@2
+    displayName: "Use .NET 8 Core sdk"
+    inputs:
+      packageType: "sdk"
+      version: "8.0.x"
+      includePreviewVersions: false
+
+  - task: DotNetCoreCLI@2
+    displayName: Run Tests
+    inputs:
+      command: test
+      projects: ${{ parameters.testProjects }}
+      arguments: '--configuration Release --logger trx --results-directory $(Agent.TempDirectory)/TestResults --collect:"XPlat Code Coverage"'
+      publishTestResults: true
+    retryCountOnTaskFailure: 3
+
+  # Publish test results
+  - task: PublishTestResults@2
+    displayName: "Publish Test Results"
+    inputs:
+      testResultsFormat: "VSTest"
+      testResultsFiles: "$(Agent.TempDirectory)/TestResults/**/*.trx"
+      mergeTestResults: true
+      failTaskOnFailedTests: true
+    condition: always()
+
+  # Publish code coverage results
+  - task: PublishCodeCoverageResults@2
+    displayName: "Publish Code Coverage"
+    inputs:
+      summaryFileLocation: "$(Agent.TempDirectory)/TestResults/**/*.xml"
+      codecoverageTool: "Cobertura"
+    condition: always()

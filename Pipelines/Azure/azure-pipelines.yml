@@ -1,0 +1,101 @@
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - TodoApi/**
+      - TodoApi.Tests/**
+      - TodoApi.IntegrationTests/**
+
+variables:
+  ProjectName: "TodoApi"
+  ArtifactName: "TodoApi"
+  UnitTestProjects: "**/*Tests.csproj"
+  IntegrationTestProjects: "**/*IntegrationTests.csproj"
+  # Add these variables or set them in your pipeline variable groups
+  RESOURCE_GROUP: "your-resource-group-name" # Update this
+  APP_NAME: "your-app-service-name" # Update this
+
+parameters:
+  - name: slotName
+    displayName: "Custom Slot Name"
+    type: string
+    default: "branch name" # By default, the branch name will be used if not provided
+  - name: deployToFeatureSlot
+    displayName: "Deploy to Feature Slot"
+    type: boolean
+    default: false # Default to false, can be set to true in the UI
+
+name: TodoApi_$(Date:yyyy) -$(Date:dd)$(Rev:.r)--$(Build.SourceBranchName)
+
+stages:
+  - stage: Build_And_Tests
+    jobs:
+      - job: Build
+        pool:
+          name: Default
+        steps:
+          - template: Templates/build-dot-net.yml
+            parameters:
+              projectPath: "$(ProjectName)"
+              artifactName: "$(ArtifactName)"
+
+      - job: Unit_Tests
+        pool:
+          name: Default
+        dependsOn: Build # Tests should depend on successful build
+        steps:
+          - template: Templates/test-dot-net.yml
+            parameters:
+              testProjects: "$(UnitTestProjects)"
+
+      - job: Integration_Tests
+        pool:
+          name: Default
+        dependsOn: Build # Integration tests should depend on successful build
+        steps:
+          - template: Templates/test-dot-net.yml
+            parameters:
+              testProjects: "$(IntegrationTestProjects)"
+
+      - job: Download_artifact
+        displayName: "Downloading artifact"
+        pool:
+          name: Default
+        dependsOn:
+          - Build
+          - Unit_Tests
+          - Integration_Tests
+        condition: and(succeeded(), eq(${{ parameters.deployToFeatureSlot }}, true)) # Use parameters directly
+        steps:
+          - task: DownloadBuildArtifacts@0
+            inputs:
+              buildType: "current"
+              downloadType: "single"
+              artifactName: $(ArtifactName)
+              downloadPath: "$(Pipeline.Workspace)"
+  - stage: Feature_Deployment
+    dependsOn: Build_And_Tests
+    condition: and(succeeded(), eq(${{ parameters.deployToFeatureSlot }}, true)) # Use parameters directly
+    jobs:
+      - job: Manage_Slots
+        displayName: "Manage Deployment Slots"
+        pool:
+          name: Default
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: "MyAzureConnection" # Name of your service connection
+              scriptType: "python"
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                python Pipelines/Azure/Scripts/deployToFeatureSlot.py
+              workingDirectory: $(System.DefaultWorkingDirectory)
+            env:
+              CUSTOM_SLOT_NAME: ${{ parameters.slotName }}
+              BUILD_SOURCEBRANCHNAME: $(Build.SourceBranchName) # Pass the branch name
+              DEPLOY_TO_FEATURE_SLOT: ${{ parameters.deployToFeatureSlot }} # Pass the checkbox value
+              RESOURCE_GROUP: $(RESOURCE_GROUP) # Use the RESOURCE_GROUP variable
+              APP_NAME: $(APP_NAME) # Use the APP_NAME variable
+              DEPLOYMENT_PACKAGE: "$(Pipeline.Workspace)/$(ProjectName)/$(ArtifactName).zip" # Specify the path to your deployment package
