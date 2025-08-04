@@ -13,9 +13,6 @@ variables:
   ArtifactName: "TodoApi"
   UnitTestProjects: "**/*Tests.csproj"
   IntegrationTestProjects: "**/*IntegrationTests.csproj"
-  # Add these variables or set them in your pipeline variable groups
-  RESOURCE_GROUP: "your-resource-group-name" # Update this
-  APP_NAME: "your-app-service-name" # Update this
 
 parameters:
   - name: slotName
