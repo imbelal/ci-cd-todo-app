@@ -48,7 +48,11 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline
-if (!app.Environment.IsProduction())
+// Check configuration to determine if Swagger should be enabled
+var enableSwagger = builder.Configuration.GetValue<bool>("Features:EnableSwagger", !app.Environment.IsProduction());
+var enableDetailedErrors = builder.Configuration.GetValue<bool>("Features:EnableDetailedErrors", app.Environment.IsDevelopment());
+
+if (enableSwagger)
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
@@ -56,6 +60,11 @@ if (!app.Environment.IsProduction())
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Todo API v1");
         c.RoutePrefix = string.Empty; // Set Swagger UI at app root
     });
+}
+
+if (enableDetailedErrors)
+{
+    app.UseDeveloperExceptionPage();
 }
 
 app.UseHttpsRedirection();
