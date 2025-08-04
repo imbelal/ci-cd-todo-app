@@ -24,14 +24,6 @@ def create_slot(resource_group, app_name, slot_name, json_file_path):
         sys.exit(1)
     print(f"Slot '{slot_name}' created successfully.")
 
-     # Set the environment variables directly from the JSON file
-    command_set = f"az webapp config appsettings set --resource-group {resource_group} --name {app_name} --slot {slot_name} --settings @{json_file_path}"
-    result_set = subprocess.run(command_set, shell=True, capture_output=True, text=True)
-    if result_set.returncode != 0:
-        print("Error setting environment variables:", result_set.stderr)
-        sys.exit(1)
-    print(f"Environment variables set for slot '{slot_name}' from '{json_file_path}' successfully.")
-
 def deploy_to_slot(resource_group, app_name, slot_name, deployment_package):
     command = f"az webapp deployment source config-zip --resource-group {resource_group} --name {app_name} --slot {slot_name} --src {deployment_package}"
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
